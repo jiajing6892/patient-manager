@@ -1,199 +1,189 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<link rel="manifest" href="manifest.json">
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js");
-  }
-</script>
-
-    <meta charset="UTF-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>病人資料管理</title>
+<title>患者資料管理 PWA</title>
 
+<!-- 字型與樣式 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap">
 <style>
     body {
-        font-family: "Segoe UI", "Noto Sans TC", sans-serif;
-        background: #f7f7fb;
-        margin: 0; padding: 20px;
+        font-family: 'Roboto', sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f8f9fb;
+        color: #333;
+    }
+    header {
+        background: #dfe6ec;
+        padding: 16px;
+        text-align: center;
+        font-size: 20px;
+        font-weight: 500;
+        color: #2d3e50;
     }
     .container {
-        max-width: 680px;
-        background: white;
-        margin: auto;
         padding: 20px;
-        border-radius: 16px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        max-width: 700px;
+        margin: auto;
     }
-    h2 {
-        text-align: center;
-        color: #4a4a4a;
-        margin-bottom: 10px;
-    }
-    input, textarea {
+    label { display: block; margin-top: 10px; font-weight: 500; }
+    input, textarea, button {
         width: 100%;
-        padding: 10px 12px;
-        margin: 6px 0 12px;
-        border-radius: 10px;
-        border: 1px solid #d3d3e7;
+        padding: 10px;
+        margin-top: 5px;
+        border-radius: 8px;
+        border: 1px solid #bbc7d4;
         font-size: 16px;
+        box-sizing: border-box;
     }
     button {
+        background-color: #4a76b6;
+        color: #fff;
         border: none;
-        padding: 10px 16px;
-        border-radius: 10px;
-        font-size: 16px;
         cursor: pointer;
-        margin-right: 6px;
+        margin-top: 15px;
     }
-    .btn-add { background:#8aa8ff; color:white; }
-    .btn-edit { background:#4bd37b; color:white; }
-    .btn-del { background:#ff7171; color:white; }
-    .search-box {
-        background:white;
-        border:1px solid #d3d3e7;
-        padding:10px;
-        border-radius:10px;
-        margin-top:10px;
+    button:hover { background-color: #3d64a1; }
+
+    /* 顯示區 */
+    .result-card {
+        background: #ffffff;
+        padding: 15px;
+        margin-top: 15px;
+        border-radius: 10px;
+        border: 1px solid #d5dce3;
     }
-    table {
-        width:100%; border-collapse: collapse; margin-top:20px;
+    .actions button {
+        width: 48%;
+        margin-top: 10px;
+        background: #5aa469;
     }
-    table, th, td {
-        border:1px solid #e1e1f0;
+    .actions button.delete { background: #c75c5c; }
+
+    /* 手機優化 */
+    @media (max-width: 480px) {
+        header { font-size: 18px; }
     }
-    th, td {
-        padding:8px;
-        text-align:center;
-        font-size:15px;
-    }
-    tr:hover { background:#f0f4ff; }
 </style>
 </head>
-
 <body>
 
-<div class="container">
-    <h2>📋 病人資料管理系統</h2>
+<header>患者資料管理</header>
 
-    <!-- 表單 -->
-    <input type="text" id="name" placeholder="病人姓名">
-    <input type="text" id="mrn" placeholder="病歷號">
-    <textarea id="note" placeholder="注意事項"></textarea>
-    <button class="btn-add" id="addBtn" onclick="addOrEdit()">新增</button>
+<div class="container">
 
     <!-- 搜尋 -->
-    <div class="search-box">
-        🔍 <input type="text" id="search" placeholder="搜尋姓名或病歷號" onkeyup="renderTable()">
-    </div>
+    <label>姓名或病歷號搜尋</label>
+    <input type="text" id="searchInput" placeholder="輸入姓名或病歷號">
+    <button onclick="searchRecord()">搜尋</button>
 
-    <!-- 資料表 -->
-    <table id="patientTable">
-        <thead>
-            <tr>
-                <th>姓名</th>
-                <th>病歷號</th>
-                <th>注意事項</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+    <!-- 結果顯示 -->
+    <div id="searchResult"></div>
+
+    <hr style="margin: 30px 0; border: 0; border-top: 1px solid #ccd6e0;">
+
+    <!-- 新增、編輯資料 -->
+    <h3 id="formTitle">新增患者資料</h3>
+    <label>姓名</label>
+    <input type="text" id="name">
+
+    <label>病歷號碼</label>
+    <input type="text" id="record">
+
+    <label>注意事項</label>
+    <textarea id="note"></textarea>
+
+    <button onclick="saveRecord()" id="saveBtn">儲存</button>
+
 </div>
 
 <script>
-    const API = "https://script.google.com/macros/s/AKfycbxa4GFiDtkde9gm-S1UddDhN6i8LoNP-EFpSPrkyFs5ikjVVKMDqWSkCkZHKVsqiawgZA/exec";
-    let patients = [];
-    let editRow = null; // 記錄正在編輯哪一筆
+const api = "https://script.google.com/macros/s/AKfycbxa4GFiDtkde9gm-S1UddDhN6i8LoNP-EFpSPrkyFs5ikjVVKMDqWSkCkZHKVsqiawgZA/exec";
+let editingId = null;
 
-    // 🚀 讀取雲端資料
-    async function loadData() {
-        const res = await fetch(API + "?action=list");
-        patients = await res.json();
-        renderTable();
+/* 儲存資料 */
+function saveRecord() {
+    const name = document.getElementById("name").value.trim();
+    const record = document.getElementById("record").value.trim();
+    const note = document.getElementById("note").value.trim();
+
+    if (!name || !record) {
+        alert("姓名及病歷號碼為必填");
+        return;
     }
 
-    // 📝 新增 or 更新
-    async function addOrEdit() {
-        let name = document.getElementById("name").value.trim();
-        let mrn = document.getElementById("mrn").value.trim();
-        let note = document.getElementById("note").value.trim();
+    fetch(api, {
+        method: "POST",
+        body: new URLSearchParams({
+            action: editingId ? "edit" : "add",
+            id: editingId || "",
+            name,
+            record,
+            note
+        })
+    }).then(r => r.text()).then(data => {
+        alert(data);
+        location.reload();
+    });
+}
 
-        if (!name || !mrn) return alert("姓名與病歷號不可空白！");
-
-        // 防重複（新增時）
-        if (!editRow) {
-            let exist = patients.some(p => p.name === name && p.mrn === mrn);
-            if (exist) return alert("⚠ 此病人資料已存在！");
-        }
-
-        let action = editRow ? "edit" : "add";
-        let body = { action, name, mrn, note };
-        if (editRow) body.row = editRow;
-
-        await fetch(API, {
-            method: "POST",
-            body: JSON.stringify(body)
-        });
-
-        alert(editRow ? "已更新！" : "已新增！");
-        resetForm();
-        loadData();
+/* 搜尋 */
+function searchRecord() {
+    let keyword = document.getElementById("searchInput").value.trim();
+    if (!keyword) {
+        alert("請輸入關鍵字");
+        return;
     }
+    fetch(api + "?action=search&keyword=" + keyword)
+        .then(res => res.json())
+        .then(data => showResult(data));
+}
 
-    // ✏ 編輯
-    function editPatient(row) {
-        let p = patients.find(x => x.row === row);
-        document.getElementById("name").value = p.name;
-        document.getElementById("mrn").value = p.mrn;
-        document.getElementById("note").value = p.note;
-        document.getElementById("addBtn").textContent = "更新";
-        editRow = row;
+/* 顯示結果 */
+function showResult(data) {
+    const div = document.getElementById("searchResult");
+    div.innerHTML = "";
+    if (!data || data.length === 0) {
+        div.innerHTML = "<p>查無資料</p>";
+        return;
     }
+    data.forEach(item => {
+        div.innerHTML += `
+        <div class="result-card">
+            <b>姓名：</b>${item.name}<br>
+            <b>病歷號：</b>${item.record}<br>
+            <b>注意事項：</b>${item.note}
+            <div class="actions">
+                <button onclick="editRecord('${item.id}','${item.name}','${item.record}','${item.note}')">編輯</button>
+                <button class="delete" onclick="deleteRecord('${item.id}')">刪除</button>
+            </div>
+        </div>`;
+    });
+}
 
-    // ❌ 刪除
-    async function deletePatient(row) {
-        if (!confirm("確定要刪除嗎？")) return;
-        await fetch(API, {
-            method: "POST",
-            body: JSON.stringify({ action: "delete", row })
-        });
-        loadData();
-    }
+/* 編輯 */
+function editRecord(id, name, record, note) {
+    editingId = id;
+    document.getElementById("name").value = name;
+    document.getElementById("record").value = record;
+    document.getElementById("note").value = note;
+    document.getElementById("formTitle").innerText = "編輯資料";
+    document.getElementById("saveBtn").innerText = "更新";
+}
 
-    // 🔄 重設表單
-    function resetForm() {
-        document.getElementById("name").value = "";
-        document.getElementById("mrn").value = "";
-        document.getElementById("note").value = "";
-        document.getElementById("addBtn").textContent = "新增";
-        editRow = null;
-    }
-
-    // 📌 顯示資料 + 搜尋
-    function renderTable() {
-        let keyword = document.getElementById("search").value.trim();
-        let tbody = document.querySelector("#patientTable tbody");
-        tbody.innerHTML = "";
-
-        patients
-            .filter(p => p.name.includes(keyword) || p.mrn.includes(keyword))
-            .forEach(p => {
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${p.name}</td>
-                        <td>${p.mrn}</td>
-                        <td>${p.note}</td>
-                        <td>
-                            <button class="btn-edit" onclick="editPatient(${p.row})">編輯</button>
-                            <button class="btn-del" onclick="deletePatient(${p.row})">刪除</button>
-                        </td>
-                    </tr>`;
+/* 刪除 */
+function deleteRecord(id) {
+    if (confirm("確定要刪除這筆資料？")) {
+        fetch(api + "?action=delete&id=" + id)
+            .then(r => r.text())
+            .then(d => {
+                alert(d);
+                location.reload();
             });
     }
-
-    loadData();
+}
 </script>
 
 </body>
