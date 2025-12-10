@@ -1,7 +1,8 @@
 {
   "name": "病人資料管理",
   "short_name": "病人管理",
-  "start_url": "./index.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f7f7fb",
   "theme_color": "#8aa8ff",
